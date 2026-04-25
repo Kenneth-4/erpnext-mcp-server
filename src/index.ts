@@ -69,7 +69,9 @@ class ERPNextClient {
   // Get a document by doctype and name
   async getDocument(doctype: string, name: string): Promise<any> {
     try {
-      const response = await this.axiosInstance.get(`/api/resource/${doctype}/${name}`);
+      const response = await this.axiosInstance.get(
+        `/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`
+      );
       return response.data.data;
     } catch (error: any) {
       throw new Error(`Failed to get ${doctype} ${name}: ${error?.message || 'Unknown error'}`);
@@ -80,20 +82,23 @@ class ERPNextClient {
   async getDocList(doctype: string, filters?: Record<string, any>, fields?: string[], limit?: number): Promise<any[]> {
     try {
       let params: Record<string, any> = {};
-      
+
       if (fields && fields.length) {
         params['fields'] = JSON.stringify(fields);
       }
-      
+
       if (filters) {
         params['filters'] = JSON.stringify(filters);
       }
-      
+
       if (limit) {
         params['limit_page_length'] = limit;
       }
-      
-      const response = await this.axiosInstance.get(`/api/resource/${doctype}`, { params });
+
+      const response = await this.axiosInstance.get(
+        `/api/resource/${encodeURIComponent(doctype)}`,
+        { params }
+      );
       return response.data.data;
     } catch (error: any) {
       throw new Error(`Failed to get ${doctype} list: ${error?.message || 'Unknown error'}`);
@@ -103,9 +108,10 @@ class ERPNextClient {
   // Create a new document
   async createDocument(doctype: string, doc: Record<string, any>): Promise<any> {
     try {
-      const response = await this.axiosInstance.post(`/api/resource/${doctype}`, {
-        data: doc
-      });
+      const response = await this.axiosInstance.post(
+        `/api/resource/${encodeURIComponent(doctype)}`,
+        { data: doc }
+      );
       return response.data.data;
     } catch (error: any) {
       throw new Error(`Failed to create ${doctype}: ${error?.message || 'Unknown error'}`);
@@ -115,9 +121,10 @@ class ERPNextClient {
   // Update an existing document
   async updateDocument(doctype: string, name: string, doc: Record<string, any>): Promise<any> {
     try {
-      const response = await this.axiosInstance.put(`/api/resource/${doctype}/${name}`, {
-        data: doc
-      });
+      const response = await this.axiosInstance.put(
+        `/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`,
+        { data: doc }
+      );
       return response.data.data;
     } catch (error: any) {
       throw new Error(`Failed to update ${doctype} ${name}: ${error?.message || 'Unknown error'}`);
@@ -142,11 +149,13 @@ class ERPNextClient {
   // Call a server-side API method
   async callMethod(method: string, args?: Record<string, any>, httpMethod: "GET" | "POST" = "POST"): Promise<any> {
     try {
+      // Encode each dotted segment so unusual characters don't break the URL.
+      const encodedMethod = method.split('.').map(encodeURIComponent).join('.');
       let response;
       if (httpMethod === "GET") {
-        response = await this.axiosInstance.get(`/api/method/${method}`, { params: args });
+        response = await this.axiosInstance.get(`/api/method/${encodedMethod}`, { params: args });
       } else {
-        response = await this.axiosInstance.post(`/api/method/${method}`, args);
+        response = await this.axiosInstance.post(`/api/method/${encodedMethod}`, args);
       }
       return response.data.message;
     } catch (error: any) {
@@ -157,7 +166,9 @@ class ERPNextClient {
   // Delete a document
   async deleteDocument(doctype: string, name: string): Promise<void> {
     try {
-      await this.axiosInstance.delete(`/api/resource/${doctype}/${name}`);
+      await this.axiosInstance.delete(
+        `/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`
+      );
     } catch (error: any) {
       throw new Error(`Failed to delete ${doctype} ${name}: ${error?.message || 'Unknown error'}`);
     }
@@ -579,18 +590,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
  * Handler for tool calls.
  */
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  if (!erpnext.isAuthenticated()) {
+    return {
+      content: [{
+        type: "text",
+        text: "Not authenticated with ERPNext. Please configure API key authentication."
+      }],
+      isError: true
+    };
+  }
+
   switch (request.params.name) {
     case "get_documents": {
-      if (!erpnext.isAuthenticated()) {
-        return {
-          content: [{
-            type: "text",
-            text: "Not authenticated with ERPNext. Please configure API key authentication."
-          }],
-          isError: true
-        };
-      }
-      
       const doctype = String(request.params.arguments?.doctype);
       const fields = request.params.arguments?.fields as string[] | undefined;
       const filters = request.params.arguments?.filters as Record<string, any> | undefined;
@@ -623,16 +634,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     
     case "create_document": {
-      if (!erpnext.isAuthenticated()) {
-        return {
-          content: [{
-            type: "text",
-            text: "Not authenticated with ERPNext. Please configure API key authentication."
-          }],
-          isError: true
-        };
-      }
-      
       const doctype = String(request.params.arguments?.doctype);
       const data = request.params.arguments?.data as Record<string, any> | undefined;
       const verbose = request.params.arguments?.verbose === true;
@@ -671,16 +672,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     
     case "update_document": {
-      if (!erpnext.isAuthenticated()) {
-        return {
-          content: [{
-            type: "text",
-            text: "Not authenticated with ERPNext. Please configure API key authentication."
-          }],
-          isError: true
-        };
-      }
-      
       const doctype = String(request.params.arguments?.doctype);
       const name = String(request.params.arguments?.name);
       const data = request.params.arguments?.data as Record<string, any> | undefined;
@@ -720,16 +711,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     
     case "run_report": {
-      if (!erpnext.isAuthenticated()) {
-        return {
-          content: [{
-            type: "text",
-            text: "Not authenticated with ERPNext. Please configure API key authentication."
-          }],
-          isError: true
-        };
-      }
-      
       const reportName = String(request.params.arguments?.report_name);
       const filters = request.params.arguments?.filters as Record<string, any> | undefined;
       
@@ -760,16 +741,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     
     case "get_document": {
-      if (!erpnext.isAuthenticated()) {
-        return {
-          content: [{
-            type: "text",
-            text: "Not authenticated with ERPNext. Please configure API key authentication."
-          }],
-          isError: true
-        };
-      }
-      
       const doctype = String(request.params.arguments?.doctype);
       const name = String(request.params.arguments?.name);
       
@@ -800,16 +771,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     
     case "call_method": {
-      if (!erpnext.isAuthenticated()) {
-        return {
-          content: [{
-            type: "text",
-            text: "Not authenticated with ERPNext. Please configure API key authentication."
-          }],
-          isError: true
-        };
-      }
-      
       const method = String(request.params.arguments?.method);
       const args = request.params.arguments?.args as Record<string, any> | undefined;
       const httpMethod = (request.params.arguments?.http_method as "GET" | "POST") || "POST";
@@ -841,16 +802,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     
     case "submit_document": {
-      if (!erpnext.isAuthenticated()) {
-        return {
-          content: [{
-            type: "text",
-            text: "Not authenticated with ERPNext. Please configure API key authentication."
-          }],
-          isError: true
-        };
-      }
-      
       const doctype = String(request.params.arguments?.doctype);
       const name = String(request.params.arguments?.name);
       const verbose = request.params.arguments?.verbose === true;
@@ -863,11 +814,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       
       try {
-        const result = await erpnext.callMethod('frappe.client.submit', { doc: { doctype, name } });
+        // frappe.client.submit constructs the doc from the passed dict rather
+        // than loading from DB, so it needs the full document with all fields.
+        const fullDoc = await erpnext.getDocument(doctype, name);
+        const result = await erpnext.callMethod('frappe.client.submit', { doc: fullDoc });
         if (verbose) {
           return {
             content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
           };
+        }
+        if (!result || typeof result !== "object" || result.name == null || result.docstatus == null) {
+          throw new McpError(
+            ErrorCode.InternalError,
+            `Unexpected response from ERPNext while submitting ${doctype} ${name}`
+          );
         }
         return {
           content: [{ type: "text", text: JSON.stringify({
@@ -887,18 +847,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
     }
-    
+
     case "cancel_document": {
-      if (!erpnext.isAuthenticated()) {
-        return {
-          content: [{
-            type: "text",
-            text: "Not authenticated with ERPNext. Please configure API key authentication."
-          }],
-          isError: true
-        };
-      }
-      
       const doctype = String(request.params.arguments?.doctype);
       const name = String(request.params.arguments?.name);
       const verbose = request.params.arguments?.verbose === true;
@@ -916,6 +866,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           return {
             content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
           };
+        }
+        if (!result || typeof result !== "object" || result.name == null || result.docstatus == null) {
+          throw new McpError(
+            ErrorCode.InternalError,
+            `Unexpected response from ERPNext while cancelling ${doctype} ${name}`
+          );
         }
         return {
           content: [{ type: "text", text: JSON.stringify({
@@ -937,16 +893,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     
     case "delete_document": {
-      if (!erpnext.isAuthenticated()) {
-        return {
-          content: [{
-            type: "text",
-            text: "Not authenticated with ERPNext. Please configure API key authentication."
-          }],
-          isError: true
-        };
-      }
-      
       const doctype = String(request.params.arguments?.doctype);
       const name = String(request.params.arguments?.name);
       
@@ -979,16 +925,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     
     case "get_doctype_fields": {
-      if (!erpnext.isAuthenticated()) {
-        return {
-          content: [{
-            type: "text",
-            text: "Not authenticated with ERPNext. Please configure API key authentication."
-          }],
-          isError: true
-        };
-      }
-      
       const doctype = String(request.params.arguments?.doctype);
       
       if (!doctype) {
@@ -1038,16 +974,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     
     case "get_doctypes": {
-      if (!erpnext.isAuthenticated()) {
-        return {
-          content: [{
-            type: "text",
-            text: "Not authenticated with ERPNext. Please configure API key authentication."
-          }],
-          isError: true
-        };
-      }
-      
       try {
         const doctypes = await erpnext.getAllDocTypes();
         return {
