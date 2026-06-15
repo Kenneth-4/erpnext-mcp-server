@@ -12,6 +12,8 @@
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import http from "http";
 import {
   CallToolRequestSchema,
   ErrorCode,
@@ -1002,12 +1004,64 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 /**
- * Start the server using stdio transport.
+ * Start the server.
  */
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error('ERPNext MCP server running on stdio');
+  const port = process.env.PORT;
+  if (port) {
+    const transports = new Map<string, SSEServerTransport>();
+
+    const httpServer = http.createServer(async (req, res) => {
+      // CORS headers
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+      if (req.method === "OPTIONS") {
+        res.writeHead(200);
+        res.end();
+        return;
+      }
+
+      const parsedUrl = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
+
+      if (req.method === "GET" && parsedUrl.pathname === "/sse") {
+        const transport = new SSEServerTransport("/messages", res);
+        transports.set(transport.sessionId, transport);
+        
+        transport.onclose = () => {
+          transports.delete(transport.sessionId);
+        };
+
+        await server.connect(transport);
+        return;
+      }
+
+      if (req.method === "POST" && parsedUrl.pathname === "/messages") {
+        const sessionId = parsedUrl.searchParams.get("sessionId");
+        const transport = sessionId ? transports.get(sessionId) : null;
+        if (!transport) {
+          res.writeHead(404);
+          res.end("Session not found");
+          return;
+        }
+        await transport.handlePostMessage(req, res);
+        return;
+      }
+
+      res.writeHead(404);
+      res.end("Not Found");
+    });
+
+    const numPort = parseInt(port, 10);
+    httpServer.listen(numPort, "0.0.0.0", () => {
+      console.error(`ERPNext MCP server running on SSE port ${numPort}`);
+    });
+  } else {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error('ERPNext MCP server running on stdio');
+  }
 }
 
 main().catch((error) => {
