@@ -185,11 +185,11 @@ class ERPNextClient {
         }
       });
       
-      if (response.data && response.data.data) {
+      if (response.data && response.data.data && response.data.data.length > 0) {
         return response.data.data.map((item: any) => item.name);
       }
       
-      return [];
+      throw new Error("No DocTypes returned from main API");
     } catch (error: any) {
       console.error("Failed to get DocTypes:", error?.message || 'Unknown error');
       
@@ -204,11 +204,11 @@ class ERPNextClient {
           }
         });
         
-        if (altResponse.data && altResponse.data.results) {
+        if (altResponse.data && altResponse.data.results && altResponse.data.results.length > 0) {
           return altResponse.data.results.map((item: any) => item.value);
         }
         
-        return [];
+        throw new Error("No DocTypes returned from alternative API");
       } catch (altError: any) {
         console.error("Alternative DocType fetch failed:", altError?.message || 'Unknown error');
         
